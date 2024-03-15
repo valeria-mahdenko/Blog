@@ -1,0 +1,71 @@
+version: '3'
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    volumes:
+      - .:/app
+    depends_on:
+      - db
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/blog
+      - CONFIG_MODE=dev
+      - SECRET_KEY=Cybellum
+
+  db:
+    image: postgres:13
+    ports:
+      - "5434:5432"
+    environment:
+      POSTGRES_DB: blog
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    healthcheck:
+      test: pg_isready --username=postgres
+      interval: 4s
+      timeout: 2s
+      retries: 5
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+  alembic:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/app
+    depends_on:
+      - db
+    environment:
+      - ALEMBIC_CONFIG=/app/alembic.ini
+      - PYTHONUNBUFFERED=1
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/blog
+    command: [ "alembic", "upgrade", "head" ]
+
+  lint:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/app
+    depends_on:
+      - web
+    command: [ "bash", "-c", "flake8 . && mypy ." ]
+
+  tests:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/app
+    depends_on:
+      - db
+    command: [ "bash", "-c", "pytest -W ignore::DeprecationWarning" ]
+
+volumes:
+  db_data:
